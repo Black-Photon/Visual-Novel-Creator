@@ -1,0 +1,10 @@
+[package]
+name = "vnc"
+version = "0.0.0"
+authors = ["Black-Photon <joseph_keane@live.co.uk>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glium = "*"
