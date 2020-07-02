@@ -1,8 +1,12 @@
-use glium::{glutin, Surface, Display, IndexBuffer};
+use glium::{glutin, Surface, Display, IndexBuffer, Frame};
 use glium::backend::glutin::glutin::ContextCurrentState;
 use glutin::event_loop::EventLoop;
+use glium::texture::Texture2d;
 
-use std::fs::read_to_string;
+use std::fs::{read_to_string, File};
+use crate::Artifact;
+use std::io::Read;
+use image::ImageFormat;
 
 #[derive(Copy, Clone)]
 pub(crate) struct Vertex {
@@ -33,9 +37,9 @@ fn setup_window
     return (wb, cb)
 }
 
-pub(crate) fn start_draw<F: 'static>(main_loop: F, event_loop: EventLoop<()>, display: glium::Display, renderer: Renderer) -> !
+pub(crate) fn start_draw<F: 'static>(main_loop: F, event_loop: EventLoop<()>, display: glium::Display, renderer: Renderer, artifacts: Vec<Artifact>) -> !
 where
-    F: Fn(&glium::Display, &Renderer, f32, f32) -> ()
+    F: Fn(&glium::Display, &Renderer, &Vec<Artifact>, f32, f32) -> ()
 {
     let start = std::time::Instant::now();
     let mut current = start;
@@ -46,7 +50,7 @@ where
         let abs_t = now.duration_since(start);
         current = now;
 
-        main_loop(&display, &renderer, delta_t.as_secs_f32(), abs_t.as_secs_f32());
+        main_loop(&display, &renderer, &artifacts, delta_t.as_secs_f32(), abs_t.as_secs_f32());
 
         let next_frame_time = std::time::Instant::now() +
             std::time::Duration::from_nanos(16_666_667);
@@ -92,13 +96,19 @@ pub(crate) fn prepare(display: &glium::Display) -> Renderer {
     return Renderer{ vertex_buffer, indices, program };
 }
 
-pub(crate) fn draw_shape(display: &glium::Display, renderer: &Renderer, shape: Shape) {
-    let mut target = display.draw();
-    target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
-
+pub(crate) fn draw_shape(renderer: &Renderer, mut target: Frame, artifact: &Artifact) -> Frame {
+    let shape = artifact.shape;
+    unsafe {
+        artifact.image.generate_mipmaps(); // This binds the texture
+    };
     let uniforms = uniform!{
-        rect_position: shape.position,
-        rect_size: shape.size
+        aspect_ratio: [1920.0, 1080.0f32],
+        bl_anchor: shape.bl_anchor,
+        tr_anchor: shape.tr_anchor,
+        bl_pos: shape.bl_pos,
+        tr_pos: shape.tr_pos,
+        depth: artifact.depth,
+        image: &artifact.image
     };
 
     let params = glium::DrawParameters {
@@ -107,11 +117,25 @@ pub(crate) fn draw_shape(display: &glium::Display, renderer: &Renderer, shape: S
             write: true,
             .. Default::default()
         },
+        blend: glium::draw_parameters::Blend::alpha_blending(),
         .. Default::default()
     };
 
     target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
-    target.finish().unwrap();
+    return target
+}
+
+pub(crate) fn create_texture(display: &Display, location: &str, format: ImageFormat) -> Texture2d {
+    use std::io::Cursor;
+    let mut file = File::open(location).unwrap();
+    let mut buffer = Vec::with_capacity(0);
+    file.read_to_end(&mut buffer);
+
+    let image = image::load(Cursor::new(buffer),
+                            format).unwrap().to_rgba();
+    let image_dimensions = image.dimensions();
+    let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+    return Texture2d::new(display, image).unwrap();
 }
 
 pub(crate) struct Renderer {
@@ -122,6 +146,8 @@ pub(crate) struct Renderer {
 
 #[derive(Copy, Clone)]
 pub(crate) struct Shape {
-    pub(crate) position: [f32;2],
-    pub(crate) size: [f32;2]
+    pub(crate) bl_anchor: [f32;2],
+    pub(crate) tr_anchor: [f32;2],
+    pub(crate) bl_pos: [f32;2],
+    pub(crate) tr_pos: [f32;2]
 }

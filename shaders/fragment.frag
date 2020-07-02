@@ -8,6 +8,9 @@ in Data data;
 
 out vec4 colour;
 
+uniform sampler2D tex;
+
 void main() {
-    colour = vec4(1.0, 0.0, 0.0, 1.0);
+    vec2 normalised = -(data.position + vec2(1.0)) / 2;
+    colour = texture(tex, normalised);
 }
