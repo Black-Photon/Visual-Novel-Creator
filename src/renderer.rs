@@ -4,7 +4,6 @@ use glutin::event_loop::EventLoop;
 use glium::texture::Texture2d;
 
 use std::fs::{read_to_string, File};
-use crate::Artifact;
 use std::io::Read;
 use image::ImageFormat;
 
@@ -129,7 +128,7 @@ pub(crate) fn create_texture(display: &Display, location: &str, format: ImageFor
     use std::io::Cursor;
     let mut file = File::open(location).unwrap();
     let mut buffer = Vec::with_capacity(0);
-    file.read_to_end(&mut buffer);
+    file.read_to_end(&mut buffer).unwrap();
 
     let image = image::load(Cursor::new(buffer),
                             format).unwrap().to_rgba();
@@ -150,4 +149,10 @@ pub(crate) struct Shape {
     pub(crate) tr_anchor: [f32;2],
     pub(crate) bl_pos: [f32;2],
     pub(crate) tr_pos: [f32;2]
+}
+
+pub(crate) struct Artifact {
+    pub(crate) shape: Shape,
+    pub(crate) image: Texture2d,
+    pub(crate) depth: f32
 }
