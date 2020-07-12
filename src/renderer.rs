@@ -36,9 +36,9 @@ fn setup_window
     return (wb, cb)
 }
 
-pub(crate) fn start_draw<F: 'static>(main_loop: F, event_loop: EventLoop<()>, display: glium::Display, renderer: Renderer, artifacts: Vec<Artifact>) -> !
+pub(crate) fn start_draw<F: 'static>(main_loop: F, event_loop: EventLoop<()>, display: glium::Display, renderer: Renderer, artifacts: Vec<Box<dyn Artifact>>) -> !
 where
-    F: Fn(&glium::Display, &Renderer, &Vec<Artifact>, f32, f32) -> ()
+    F: Fn(&glium::Display, &Renderer, &Vec<Box<dyn Artifact>>, f32, f32) -> ()
 {
     let start = std::time::Instant::now();
     let mut current = start;
@@ -95,35 +95,6 @@ pub(crate) fn prepare(display: &glium::Display) -> Renderer {
     return Renderer{ vertex_buffer, indices, program };
 }
 
-pub(crate) fn draw_shape(renderer: &Renderer, mut target: Frame, artifact: &Artifact) -> Frame {
-    let shape = artifact.shape;
-    unsafe {
-        artifact.image.generate_mipmaps(); // This binds the texture
-    };
-    let uniforms = uniform!{
-        aspect_ratio: [1920.0, 1080.0f32],
-        bl_anchor: shape.bl_anchor,
-        tr_anchor: shape.tr_anchor,
-        bl_pos: shape.bl_pos,
-        tr_pos: shape.tr_pos,
-        depth: artifact.depth,
-        image: &artifact.image
-    };
-
-    let params = glium::DrawParameters {
-        depth: glium::Depth {
-            test: glium::draw_parameters::DepthTest::IfLess,
-            write: true,
-            .. Default::default()
-        },
-        blend: glium::draw_parameters::Blend::alpha_blending(),
-        .. Default::default()
-    };
-
-    target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
-    return target
-}
-
 pub(crate) fn create_texture(display: &Display, location: &str, format: ImageFormat) -> Texture2d {
     use std::io::Cursor;
     let mut file = File::open(location).unwrap();
@@ -138,9 +109,9 @@ pub(crate) fn create_texture(display: &Display, location: &str, format: ImageFor
 }
 
 pub(crate) struct Renderer {
-    vertex_buffer: glium::VertexBuffer<Vertex>,
-    indices: IndexBuffer<u32>,
-    program: glium::Program
+    pub(crate) vertex_buffer: glium::VertexBuffer<Vertex>,
+    pub(crate) indices: IndexBuffer<u32>,
+    pub(crate) program: glium::Program
 }
 
 #[derive(Copy, Clone)]
@@ -151,8 +122,70 @@ pub(crate) struct Shape {
     pub(crate) tr_pos: [f32;2]
 }
 
-pub(crate) struct Artifact {
+#[derive(Copy, Clone)]
+pub(crate) struct Position {
+    pub(crate) anchor: [f32;2],
+    pub(crate) position: [f32;2]
+}
+
+// TODO remove?
+// impl Position {
+//     fn to_shape(&self) -> Shape {
+//         Shape {
+//             bl_anchor: self.anchor,
+//             tr_anchor: self.anchor,
+//             bl_pos: self.position,
+//             tr_pos: self.position
+//         }
+//     }
+// }
+
+impl Position {
+    pub(crate) fn new(anchor: [f32;2], position: [f32;2]) -> Self {
+        Position {
+            anchor,
+            position
+        }
+    }
+}
+
+pub(crate) trait Artifact {
+    fn draw(&self, renderer: &Renderer, target: Frame) -> Frame;
+}
+
+pub(crate) struct SpriteArtifact {
     pub(crate) shape: Shape,
     pub(crate) image: Texture2d,
     pub(crate) depth: f32
+}
+
+impl Artifact for SpriteArtifact {
+    fn draw(&self, renderer: &Renderer, mut target: Frame) -> Frame {
+        let shape = self.shape;
+        unsafe {
+            self.image.generate_mipmaps(); // This binds the texture
+        };
+        let uniforms = uniform!{
+            aspect_ratio: [1920.0, 1080.0f32],
+            bl_anchor: shape.bl_anchor,
+            tr_anchor: shape.tr_anchor,
+            bl_pos: shape.bl_pos,
+            tr_pos: shape.tr_pos,
+            depth: self.depth,
+            image: &self.image
+        };
+
+        let params = glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::draw_parameters::DepthTest::IfLess,
+                write: true,
+                .. Default::default()
+            },
+            blend: glium::draw_parameters::Blend::alpha_blending(),
+            .. Default::default()
+        };
+
+        target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
+        return target
+    }
 }
