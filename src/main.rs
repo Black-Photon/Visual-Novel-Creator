@@ -53,7 +53,7 @@ fn main() {
 
     let mut artifacts: Vec<Box<dyn Artifact>> = vec![Box::new(cog), Box::new(alt)];
     unsafe {
-        let text = create_string("HELLO", &CHARS, Position::new([0.0, 0.0], [0.0, 0.0]), 0.8);
+        let text = create_string("No! You can't go now! That would surely spell the end for all of us!", &CHARS, Position::new([0.0, 0.0], [40.0, 200.0]), 0.8, 6.0);
         artifacts.push(Box::new(text));
     }
     renderer::start_draw(&frame, event_loop, display, render_program, artifacts);

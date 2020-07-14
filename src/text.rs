@@ -30,9 +30,12 @@ pub(crate) fn load_char(display: &Display, face: &Face, c: char) -> Character {
         }
     }
 
-    let width = bitmap.width();
+    let mut width = bitmap.width();
     let height = bitmap.rows();
     let offset = (bitmap.rows() - glyph.bitmap_top()) as f32;
+    if c == ' ' {
+        width = 50;
+    }
 
     let char_image = glium::texture::RawImage2d::from_raw_rgba(figure, (width as u32, height as u32));
     let char_tex = Texture2d::new(display, char_image).unwrap();
@@ -45,7 +48,7 @@ pub(crate) fn load_char(display: &Display, face: &Face, c: char) -> Character {
     }
 }
 
-pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, position: Position, depth: f32) -> TextArtifact {
+pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, position: Position, depth: f32, font_size: f32) -> TextArtifact {
     let mut string_vec: Vec<&'static Character> = Vec::new();
     for c in string.chars() {
         let character: &'static Character = char_set.get(c as usize).unwrap();
@@ -54,7 +57,8 @@ pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, pos
     TextArtifact {
         position,
         string: string_vec,
-        depth
+        depth,
+        font_size
     }
 }
 
@@ -68,7 +72,8 @@ pub(crate) struct Character {
 pub(crate) struct TextArtifact {
     pub(crate) position: Position,
     pub(crate) string: Vec<&'static Character>,
-    pub(crate) depth: f32
+    pub(crate) depth: f32,
+    pub(crate) font_size: f32
 }
 
 impl Artifact for TextArtifact {
@@ -87,8 +92,12 @@ impl Artifact for TextArtifact {
         };
 
         for c in self.string.to_vec() {
-            let bl_pos = [*origin.get(0).unwrap(), origin.get(1).unwrap() - c.offset];
-            let tr_pos = [origin.get(0).unwrap() + c.width, origin.get(1).unwrap() + c.height];
+            let width = c.width * self.font_size * 0.01;
+            let height = c.height * self.font_size * 0.01;
+            let offset = c.offset * self.font_size * 0.01;
+
+            let bl_pos = [*origin.get(0).unwrap(), origin.get(1).unwrap() - offset];
+            let tr_pos = [origin.get(0).unwrap() + width, origin.get(1).unwrap() + height - offset];
             unsafe {
                 c.image.generate_mipmaps(); // This binds the texture
             };
@@ -103,7 +112,7 @@ impl Artifact for TextArtifact {
             };
 
             target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
-            origin = [origin.get(0).unwrap() + c.width + 10.0, *origin.get(1).unwrap()];
+            origin = [origin.get(0).unwrap() + width + 5.0, *origin.get(1).unwrap()];
         }
         return target
     }
