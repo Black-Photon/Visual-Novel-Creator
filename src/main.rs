@@ -7,7 +7,7 @@ extern crate image;
 extern crate freetype;
 
 use glium::Surface;
-use crate::renderer::{create_texture, SpriteArtifact, Artifact, Position};
+use crate::renderer::{create_texture, SpriteArtifact, Artifact, Position, EmptyArtifact};
 use image::ImageFormat;
 
 use freetype::Library;
@@ -25,37 +25,46 @@ fn main() {
         }
     }
 
-    let shape = renderer::Shape {
+    let background_shape = renderer::Shape {
         bl_anchor: [0.0, 0.0],
         tr_anchor: [1.0, 1.0],
         bl_pos: [0.0, 0.0],
         tr_pos: [0.0, 0.0]
     };
-    let texture = create_texture(&display, "D:/Programming/Projects/VNC/images/steinsgate_okabe_monitor.jpg", ImageFormat::Jpeg);
-    let cog = SpriteArtifact {
-        shape,
-        image: texture,
-        depth: 0.0
+    let background_tex = create_texture(&display, "D:/Programming/Projects/VNC/images/steinsgate_okabe_monitor.jpg", ImageFormat::Jpeg);
+    let background = SpriteArtifact {
+        shape: background_shape,
+        image: background_tex,
+        depth: 0.0,
+        name: "background".to_string(),
+        children: vec![]
     };
 
-    let bottom = renderer::Shape {
+    let textbox_shape = renderer::Shape {
         bl_anchor: [0.0, 0.0],
         tr_anchor: [1.0, 0.0],
         bl_pos: [0.0, 0.0],
         tr_pos: [0.0, 300.0]
     };
-    let texture_2 = create_texture(&display, "D:/Programming/Projects/VNC/images/textbox.png", ImageFormat::Png);
-    let alt = SpriteArtifact {
-        shape: bottom,
-        image: texture_2,
-        depth: 0.5
+    let textbox_tex = create_texture(&display, "D:/Programming/Projects/VNC/images/textbox.png", ImageFormat::Png);
+    let textbox = SpriteArtifact {
+        shape: textbox_shape,
+        image: textbox_tex,
+        depth: 0.5,
+        name: "textbox".to_string(),
+        children: vec![]
     };
 
-    let mut artifacts: Vec<Box<dyn Artifact>> = vec![Box::new(cog), Box::new(alt)];
+    let mut root = EmptyArtifact {
+        name: "root".to_string(),
+        children: vec![Box::new(background), Box::new(textbox)]
+    };
+
     unsafe {
-        let text = create_string("No! You can't go now! That would surely spell the end for all of us!", &CHARS, Position::new([0.0, 0.0], [40.0, 200.0]), 0.8, 6.0);
-        artifacts.push(Box::new(text));
+        let text = create_string("No! You can't go now! That would surely spell the end for all of us!", &CHARS, Position::new([0.0, 0.0], [40.0, 200.0]), 0.8, 6.0, "text", vec![]);
+        root.add_child(Box::new(text));
     }
+    let artifacts: Vec<Box<dyn Artifact>> = vec![Box::new(root)];
     renderer::start_draw(&frame, event_loop, display, render_program, artifacts);
 }
 

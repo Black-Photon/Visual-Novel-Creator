@@ -1,6 +1,6 @@
 use freetype::{Face, Library};
 use std::ffi::OsStr;
-use crate::renderer::{Position, Renderer, Artifact};
+use crate::renderer::{Position, Renderer, Artifact, default_draw_params};
 use glium::{Frame, Display, Surface};
 use glium::texture::Texture2d;
 
@@ -48,7 +48,7 @@ pub(crate) fn load_char(display: &Display, face: &Face, c: char) -> Character {
     }
 }
 
-pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, position: Position, depth: f32, font_size: f32) -> TextArtifact {
+pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, position: Position, depth: f32, font_size: f32, name: &str, children: Vec<Box<dyn Artifact>>) -> TextArtifact {
     let mut string_vec: Vec<&'static Character> = Vec::new();
     for c in string.chars() {
         let character: &'static Character = char_set.get(c as usize).unwrap();
@@ -58,7 +58,9 @@ pub(crate) fn create_string(string: &str, char_set: &'static Vec<Character>, pos
         position,
         string: string_vec,
         depth,
-        font_size
+        font_size,
+        name: name.to_string(),
+        children
     }
 }
 
@@ -73,23 +75,29 @@ pub(crate) struct TextArtifact {
     pub(crate) position: Position,
     pub(crate) string: Vec<&'static Character>,
     pub(crate) depth: f32,
-    pub(crate) font_size: f32
+    pub(crate) font_size: f32,
+    pub(crate) name: String,
+    pub(crate) children: Vec<Box<dyn Artifact>>
 }
 
 impl Artifact for TextArtifact {
+    fn name(&self) -> String {
+        return self.name.clone();
+    }
+
+    fn children(&self) -> &Vec<Box<dyn Artifact>> {
+        return &self.children;
+    }
+
+    fn add_child(&mut self, artifact: Box<dyn Artifact>) {
+        self.children.push(artifact);
+    }
+
     fn draw(&self, renderer: &Renderer, mut target: Frame) -> Frame {
         let pos = self.position;
         let mut origin = pos.position;
 
-        let params = glium::DrawParameters {
-            depth: glium::Depth {
-                test: glium::draw_parameters::DepthTest::IfLess,
-                write: true,
-                ..Default::default()
-            },
-            blend: glium::draw_parameters::Blend::alpha_blending(),
-            ..Default::default()
-        };
+        let params = default_draw_params();
 
         for c in self.string.to_vec() {
             let width = c.width * self.font_size * 0.01;
@@ -113,6 +121,9 @@ impl Artifact for TextArtifact {
 
             target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
             origin = [origin.get(0).unwrap() + width + 5.0, *origin.get(1).unwrap()];
+        }
+        for c in &self.children {
+            target = c.draw(renderer, target);
         }
         return target
     }

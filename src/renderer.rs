@@ -1,4 +1,4 @@
-use glium::{glutin, Surface, Display, IndexBuffer, Frame};
+use glium::{glutin, Surface, Display, IndexBuffer, Frame, DrawParameters};
 use glium::backend::glutin::glutin::ContextCurrentState;
 use glutin::event_loop::EventLoop;
 use glium::texture::Texture2d;
@@ -128,18 +128,6 @@ pub(crate) struct Position {
     pub(crate) position: [f32;2]
 }
 
-// TODO remove?
-// impl Position {
-//     fn to_shape(&self) -> Shape {
-//         Shape {
-//             bl_anchor: self.anchor,
-//             tr_anchor: self.anchor,
-//             bl_pos: self.position,
-//             tr_pos: self.position
-//         }
-//     }
-// }
-
 impl Position {
     pub(crate) fn new(anchor: [f32;2], position: [f32;2]) -> Self {
         Position {
@@ -150,16 +138,38 @@ impl Position {
 }
 
 pub(crate) trait Artifact {
+    fn name(&self) -> String;
+    fn children(&self) -> &Vec<Box<dyn Artifact>>;
+    fn add_child(&mut self, artifact: Box<dyn Artifact>);
     fn draw(&self, renderer: &Renderer, target: Frame) -> Frame;
 }
 
 pub(crate) struct SpriteArtifact {
     pub(crate) shape: Shape,
     pub(crate) image: Texture2d,
-    pub(crate) depth: f32
+    pub(crate) depth: f32,
+    pub(crate) name: String,
+    pub(crate) children: Vec<Box<dyn Artifact>>
+}
+
+pub(crate) struct EmptyArtifact {
+    pub(crate) name: String,
+    pub(crate) children: Vec<Box<dyn Artifact>>
 }
 
 impl Artifact for SpriteArtifact {
+    fn name(&self) -> String {
+        return self.name.clone();
+    }
+
+    fn children(&self) -> &Vec<Box<dyn Artifact>> {
+        return &self.children;
+    }
+
+    fn add_child(&mut self, artifact: Box<dyn Artifact>) {
+        self.children.push(artifact);
+    }
+
     fn draw(&self, renderer: &Renderer, mut target: Frame) -> Frame {
         let shape = self.shape;
         unsafe {
@@ -175,17 +185,45 @@ impl Artifact for SpriteArtifact {
             image: &self.image
         };
 
-        let params = glium::DrawParameters {
-            depth: glium::Depth {
-                test: glium::draw_parameters::DepthTest::IfLess,
-                write: true,
-                .. Default::default()
-            },
-            blend: glium::draw_parameters::Blend::alpha_blending(),
-            .. Default::default()
-        };
+        let params = default_draw_params();
 
         target.draw(&renderer.vertex_buffer, &renderer.indices, &renderer.program, &uniforms, &params).unwrap();
+        for c in &self.children {
+            target = c.draw(renderer, target);
+        }
         return target
+    }
+}
+
+impl Artifact for EmptyArtifact {
+    fn name(&self) -> String {
+        return self.name.clone();
+    }
+
+    fn children(&self) -> &Vec<Box<dyn Artifact>> {
+        return &self.children;
+    }
+
+    fn add_child(&mut self, artifact: Box<dyn Artifact>) {
+        self.children.push(artifact);
+    }
+
+    fn draw(&self, renderer: &Renderer, mut target: Frame) -> Frame {
+        for c in &self.children {
+            target = c.draw(renderer, target);
+        }
+        return target
+    }
+}
+
+pub(crate) fn default_draw_params() -> DrawParameters<'static> {
+    glium::DrawParameters {
+        depth: glium::Depth {
+            test: glium::draw_parameters::DepthTest::IfLess,
+            write: true,
+            .. Default::default()
+        },
+        blend: glium::draw_parameters::Blend::alpha_blending(),
+        .. Default::default()
     }
 }
